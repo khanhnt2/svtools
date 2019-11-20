@@ -11,6 +11,7 @@ def main():
     parser.add_argument('file', metavar='FILE', type=str, help='Executable file path')
     parser.add_argument('-s', '--shellcode', type=str, help='Shellcode file path', required=True)
     parser.add_argument('-e', '--entrypoint', action='store_false', help='Hook at entrypoint')
+    parser.add_argument('-d', '--data', action='store_true', help='Create data section')
     parser.add_argument('-a', '--address', type=lambda x: int(x, 0), help='Hook at address', default=0)
     t_arg = parser.add_argument('-o', '--output', type=str, help='Output file', default='patched')
 
@@ -21,29 +22,15 @@ def main():
     t_arg.default = '%s_patched' % args.file
     shellcode = list(open(args.shellcode, 'rb').read())
 
-    # Create shellcode into new section
-    section = None
-    code = None
-    if is_pefile(b):  # PE file
-        section = PE.Section()
-        section.characteristics = PE.SECTION_CHARACTERISTICS.CNT_CODE | PE.SECTION_CHARACTERISTICS.MEM_READ | PE.SECTION_CHARACTERISTICS.MEM_EXECUTE | PE.SECTION_CHARACTERISTICS.MEM_WRITE
-        # section.virtual_size = 0x1000
-        section.content = [0x90] * 0x1000
-        code = b.add_section(section, PE.SECTION_TYPES.TEXT)
-    else:
-        section = ELF.Section('.testtt')
-        section += ELF.SECTION_FLAGS.ALLOC
-        section += ELF.SECTION_FLAGS.WRITE
-        section += ELF.SECTION_FLAGS.EXECINSTR
-        section.alignment = 16
-        section.content = [0x90] * 0x1000
-        code = b.add(section, True)
+    section = create_section(b)
+    code = add_section(b, section)
 
     jmp_back = []
     architecture = get_cpu_architecture(b)
     if not architecture:
         print('Unknow architecture. Exit!')
         sys.exit(1)
+
     if args.address != 0:  # hook at address
         addr = args.address
         cs_mode = None
@@ -80,7 +67,11 @@ def main():
             jmp_back = original_bytes + list(b'\xff\x25\x00\x00\x00\x00' + struct.pack('<Q', addr + ssum))
         jmp_to += [0x90] * (ssum - len(jmp_to))  # patch nop
         b.patch_address(addr, jmp_to)
-
+        push_registers = [0x50, 0x53, 0x51, 0x52, 0x56, 0x57, 0x55, 0x41, 0x50, 0x41, 0x51, 0x41, 0x52, 0x41, 0x53, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57]
+        pop_register = [0x41, 0x5F, 0x41, 0x5E, 0x41, 0x5D, 0x41, 0x5C, 0x41, 0x5B, 0x41, 0x5A, 0x41, 0x59, 0x41, 0x58, 0x5D, 0x5F, 0x5E, 0x5A, 0x59, 0x5B, 0x58]
+        shellcode = push_registers + shellcode + pop_register + jmp_back
+    elif args.data:
+        pass
     elif args.entrypoint:  # hook at entrypoint
         entrypoint = 0
         if is_pefile(b):
@@ -97,11 +88,40 @@ def main():
             jmp_back = list(b'\xe9' + struct.pack('<I', offset & 0xffffffff))
         else:
             jmp_back = list(b'\xff\x25\x00\x00\x00\x00' + struct.pack('<Q', entrypoint))
+        push_registers = [0x50, 0x53, 0x51, 0x52, 0x56, 0x57, 0x55]
+        pop_register = [0x5D, 0x5F, 0x5E, 0x5A, 0x59, 0x5B, 0x58]
+        shellcode = push_registers + shellcode + jmp_back + pop_register
 
-    code.content = shellcode + jmp_back
+    code.content = shellcode
     outfile = args.output if args.output != 'patched' else '%s_patched' % args.file
     print('Create new section at 0x%x' % code.virtual_address)
     b.write(outfile)
+
+
+def create_section(binary):
+    section = None
+    if is_pefile(binary):  # PE file
+        section = PE.Section()
+        section.characteristics = PE.SECTION_CHARACTERISTICS.CNT_CODE | PE.SECTION_CHARACTERISTICS.MEM_READ | PE.SECTION_CHARACTERISTICS.MEM_EXECUTE | PE.SECTION_CHARACTERISTICS.MEM_WRITE
+        # section.virtual_size = 0x1000
+        section.content = [0x90] * 0x1000
+    else:
+        section = ELF.Section()
+        section += ELF.SECTION_FLAGS.ALLOC
+        section += ELF.SECTION_FLAGS.WRITE
+        section += ELF.SECTION_FLAGS.EXECINSTR
+        section.alignment = 16
+        section.content = [0x90] * 0x1000
+    return section
+
+
+def add_section(binary, section):
+    result = None
+    if is_pefile(binary):
+        result = binary.add_section(section)
+    else:
+        result = binary.add(section)
+    return result
 
 
 def get_cpu_architecture(binary):
