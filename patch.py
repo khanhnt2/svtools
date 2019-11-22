@@ -17,7 +17,8 @@ class Shellcode():
             self._restore_state = 'pop ebp; pop edi; pop esi; pop edx; pop ecx; pop ebx; pop eax; popf'
         elif arch == 'x64':
             self.engine = Ks(KS_ARCH_X86, KS_MODE_64)
-            self._jmp = 'jmp [rip]'
+            # self._jmp = 'jmp [rip]'
+            self._jmp = 'jmp %d'
             self._save_state = 'pushf; push rax; push rbx; push rcx; push rdx; push rsi; push rdi; push rbp; push r8; push r9; push r10; push r11; push r12; push r13; push r14; push r15'
             self._restore_state = 'pop r15; pop r14; pop r13; pop r12; pop r11; pop r10; pop r9; pop r8; pop rbp; pop rdi; pop rsi; pop rdx; pop rcx; pop rbx; pop rax; popf'
 
@@ -27,8 +28,9 @@ class Shellcode():
             offset = _to - _from
             shellcode, _ = self.engine.asm(self._jmp % offset)
         elif self.arch == 'x64':
-            shellcode, _ = self.engine.asm(self._jmp)
-            shellcode += list(struct.pack('<Q', _to))
+            offset = _to - _from
+            shellcode, _ = self.engine.asm(self._jmp % offset)
+            # shellcode += list(struct.pack('<Q', _to))
         return shellcode
 
     @property
