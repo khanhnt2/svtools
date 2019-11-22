@@ -2,9 +2,11 @@
 import argparse
 from lief import PE, ELF, parse
 import sys
-import struct
+from struct import pack, unpack
 from capstone import *
+from capstone.x86 import *
 from keystone import *
+from typing import List
 
 
 class Shellcode():
@@ -15,12 +17,14 @@ class Shellcode():
             self._jmp = 'jmp %d'
             self._save_state = 'pushf; push eax; push ebx; push ecx; push edx; push esi; push edi; push ebp'
             self._restore_state = 'pop ebp; pop edi; pop esi; pop edx; pop ecx; pop ebx; pop eax; popf'
+            self._magic_number = 0xffffffff
         elif arch == 'x64':
             self.engine = Ks(KS_ARCH_X86, KS_MODE_64)
             # self._jmp = 'jmp [rip]'
             self._jmp = 'jmp %d'
             self._save_state = 'pushf; push rax; push rbx; push rcx; push rdx; push rsi; push rdi; push rbp; push r8; push r9; push r10; push r11; push r12; push r13; push r14; push r15'
             self._restore_state = 'pop r15; pop r14; pop r13; pop r12; pop r11; pop r10; pop r9; pop r8; pop rbp; pop rdi; pop rsi; pop rdx; pop rcx; pop rbx; pop rax; popf'
+            self._magic_number = 0xffffffffffffffff
 
     def jmp(self, _from, _to):
         shellcode = None
@@ -32,6 +36,32 @@ class Shellcode():
             shellcode, _ = self.engine.asm(self._jmp % offset)
             # shellcode += list(struct.pack('<Q', _to))
         return shellcode
+
+    def fix_insn(self, insn: CsInsn, new_addr: int):
+        opcode = []
+        # fix offset if it's call or jump relative
+        print(hex(new_addr))
+        if (1 in insn.groups or 2 in insn.groups) and 7 in insn.groups:
+            # relative address is always <= 4 bytes
+            old_offset = unpack('<I', insn.bytes[insn.imm_offset:] + b'\x00' * (4 - len(insn.bytes[insn.imm_offset:])))[0]
+            dst_addr = insn.address + old_offset + insn.size
+            offset = dst_addr - new_addr
+            opcode = self.asm(insn.mnemonic + ' ' + str(offset))
+        elif insn.op_find(X86_OP_MEM, 1):
+            op = insn.op_find(X86_OP_MEM, 1)
+            if op.mem.base == X86_REG_RIP or op.mem.base == X86_REG_EIP:
+                dst_addr = insn.address + op.mem.disp
+                offset = dst_addr - new_addr
+                offset = offset + 5 if offset > 0 else offset
+                opcode = insn.bytes[:-4] + pack('<i', offset)
+            else:
+                opcode = insn.bytes
+        else:
+            opcode = insn.bytes
+        return opcode
+
+    def asm(self, code):
+        return self.engine.asm(code)[0]
 
     @property
     def save_state(self):
@@ -66,34 +96,35 @@ def main():
         sys.exit(1)
 
     if len(args.address) != 0 and len(args.address) == 1:  # hook at address
+        cs_mode = None
+        if architecture == 'x86':
+            cs_mode = CS_MODE_32
+        else:
+            cs_mode = CS_MODE_64
+        md = Cs(CS_ARCH_X86, cs_mode)
+        md.detail = True
         for addr in args.address:
-            cs_mode = None
-            if architecture == 'x86':
-                cs_mode = CS_MODE_32
-                jmplen = 5
-            else:
-                cs_mode = CS_MODE_64
-                jmplen = 14
-
-            # calculate number of bytes to patch
-            md = Cs(CS_ARCH_X86, cs_mode)
-            data = b.get_content_from_virtual_address(addr, 20)
-            ssum = 0
-            for ins in md.disasm(bytes(data), 0x1000):
-                ssum += ins.size
-                if ssum >= jmplen:
-                    break
-            original_bytes = data[:ssum]
-
             section_addr = code.virtual_address
             if is_pefile(b):
                 section_addr = code.virtual_address + b.optional_header.imagebase
-            # jmp depend on architecture
+
             sc = Shellcode(architecture)
             jmp_to = sc.jmp(addr, section_addr)
             save_state = sc.save_state
             restore_state = sc.restore_state
-            jmp_back = original_bytes + sc.jmp(section_addr + len(shellcode) + len(save_state) + len(restore_state) + ssum, addr + ssum)
+
+            # calculate number of bytes to patch
+            data = b.get_content_from_virtual_address(addr, 20)
+            ssum = 0
+            new_bytes = []
+            for ins in md.disasm(bytes(data), addr):
+                new_bytes += sc.fix_insn(ins, section_addr + len(new_bytes) + len(shellcode) + len(save_state) + len(restore_state))
+                ssum += ins.size
+                if ssum >= len(jmp_to):
+                    break
+            # assert ssum == len(new_bytes)
+
+            jmp_back = new_bytes + sc.jmp(section_addr + len(new_bytes) + len(shellcode) + len(save_state) + len(restore_state), addr + ssum)
             jmp_to += [0x90] * (ssum - len(jmp_to))  # pad nop
             b.patch_address(addr, jmp_to)
             shellcode = save_state + shellcode + restore_state + jmp_back
