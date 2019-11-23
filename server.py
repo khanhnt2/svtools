@@ -17,7 +17,7 @@ def recv(p):
     d = decrypt(l)
     if b'UITCTF' in d:
         print("flag is", d)
-    submit_flag_conn.send(d + '\n')
+    submit_flag_conn.send(d + b'\n')
 
 
 flag_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
