@@ -36,7 +36,8 @@ bot_server.listen(10)
 
 while 1:
     try:
-        c, a = s.accept()
+        c, a = bot_server.accept()
+        print('New connection')
         threading.Thread(target=recv(c))
     except KeyboardInterrupt:
         break
