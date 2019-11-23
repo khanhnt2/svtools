@@ -1,9 +1,9 @@
 import requests
 import socket
 
-HOST = '10.0.0.0'
+HOST = '167.179.90.83'
 PORT = 8089
-URL = 'ahihi.com'
+URL = 'http://10.33.250.18:8080/submit_flag'
 COOKIE = ''
 HEADERS = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:70.0) Gecko/20100101 Firefox/70.0',
            'cookie': COOKIE}
@@ -26,5 +26,6 @@ while True:
     flag = readline(s)
     print('********')
     print('Sending flag: ', flag)
-    rq = requests.post(URL, data=flag, headers=HEADERS)
+    data = {'team_id': 2, 'token': 'wKiyz4fBYk7XuPHEhmDEtxtjHhKTQaHdknxzWVyqZ9y3TqvigR', 'flag': flag}
+    rq = requests.post(URL, data=data, headers=HEADERS)
     print('Status code: ', rq.status_code)
