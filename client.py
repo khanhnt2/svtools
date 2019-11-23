@@ -13,7 +13,7 @@ def readline(conn):
     line = ''
     while 1:
         char = conn.recv(1)
-        line += chr(char)
+        line += chr(char[0])
         if char == b'\n':
             break
     return line
