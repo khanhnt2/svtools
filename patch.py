@@ -6,7 +6,6 @@ from struct import pack, unpack
 from capstone import *
 from capstone.x86 import *
 from keystone import *
-from typing import List
 
 
 class Shellcode():
@@ -47,6 +46,7 @@ class Shellcode():
             dst_addr = insn.address + old_offset + insn.size
             offset = dst_addr - new_addr
             opcode = self.asm(insn.mnemonic + ' ' + str(offset))
+        # fix offset in MEM rip/eip
         elif insn.op_find(X86_OP_MEM, 1):
             op = insn.op_find(X86_OP_MEM, 1)
             if op.mem.base == X86_REG_RIP or op.mem.base == X86_REG_EIP:
