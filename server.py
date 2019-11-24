@@ -30,7 +30,7 @@ def recv(p):
         try:
             lock.acquire(True)
             db.execute("""INSERT INTO flags VALUES (?, ?, ?)""", (d, now, False))
-            submit_flag_conn.send(d + '\n')
+            submit_flag_conn.send(d + b'\n')
         except sqlite3.IntegrityError:
             pass
         except Exception as e:
