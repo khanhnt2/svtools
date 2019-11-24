@@ -26,18 +26,18 @@ def recv(p):
     d = decrypt(l)
     if b'UITCTF' in d:
         logging.info("flag is", d)
-    now = str(datetime.datetime.now())
-    try:
-        lock.acquire(True)
-        db.execute("""INSERT INTO flags VALUES (?, ?, ?)""", (d, now, False))
-        submit_flag_conn.send(d + '\n')
-    except sqlite3.IntegrityError:
-        pass
-    except Exception as e:
-        logging.error('Send flag fail. %s' % e)
-    finally:
-        db.commit()
-        lock.release()
+        now = str(datetime.datetime.now())
+        try:
+            lock.acquire(True)
+            db.execute("""INSERT INTO flags VALUES (?, ?, ?)""", (d, now, False))
+            submit_flag_conn.send(d + '\n')
+        except sqlite3.IntegrityError:
+            pass
+        except Exception as e:
+            logging.error('Send flag fail. %s' % e)
+        finally:
+            db.commit()
+            lock.release()
 
 
 db = sqlite3.connect('flags.db', check_same_thread=False)
