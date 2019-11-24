@@ -2,7 +2,7 @@ import requests
 import socket
 
 HOST = '167.179.90.83'
-PORT = 8089
+PORT = 80
 URL = 'http://10.33.250.18:8080/submit_flag'
 COOKIE = ''
 HEADERS = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:70.0) Gecko/20100101 Firefox/70.0',
@@ -13,7 +13,7 @@ def readline(conn):
     line = ''
     while 1:
         char = conn.recv(1)
-        line += char
+        line += chr(char[0])
         if char == '\n':
             break
     return line
