@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 import socket
 import threading
+import sqlite3
+import datetime
+import logging
+
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s]: %(message)s', datefmt='%H:%M:%S')
+lock = threading.Lock()
 
 
 def decrypt(c):
@@ -12,34 +19,54 @@ def decrypt(c):
 
 def recv(p):
     global submit_flag_conn
+    global db
+    global lock
 
     l = p.recv(1024)
     d = decrypt(l)
     if b'UITCTF' in d:
-        print("flag is", d)
-    submit_flag_conn.send(d + '\n')
+        logging.info("flag is", d)
+    now = str(datetime.datetime.now())
+    try:
+        lock.acquire(True)
+        db.execute("""INSERT INTO flags VALUES (?, ?, ?)""", (d, now, False))
+        submit_flag_conn.send(d + '\n')
+    except sqlite3.IntegrityError:
+        pass
+    except Exception as e:
+        logging.error('Send flag fail. %s' % e)
+    finally:
+        db.commit()
+        lock.release()
 
+
+db = sqlite3.connect('flags.db', check_same_thread=False)
+db.execute('''CREATE TABLE IF NOT EXISTS flags (flag PRIMARY KEY TEXT NOT NULL, time DATATIME, submit BOOLEAN)''')
 
 flag_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 flag_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 flag_server.bind(('0.0.0.0', 8089))
 flag_server.listen(1)
-print('Wait client to connect...')
+flag_server.setblocking(0)
+logging.info('Wait client to connect...')
 submit_flag_conn, a = flag_server.accept()
 
-print('Start bot server')
+logging.info('Start bot server')
 bot_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 bot_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+bot_server.setblocking(0)
 bot_server.bind(('0.0.0.0', 8080))
 bot_server.listen(10)
 
 while 1:
     try:
         c, a = bot_server.accept()
-        print('New connection')
-        threading.Thread(target=recv(c))
+        logging.info('New connection')
+        t = threading.Thread(target=recv, args=(c,))
+        t.start()
     except KeyboardInterrupt:
+        db.close()
         break
     except Exception as e:
-        print(e)
+        logging.error(e)
         pass

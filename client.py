@@ -20,6 +20,7 @@ def readline(conn):
 
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.setblocking(0)
 s.connect((HOST, PORT))
 
 while True:
