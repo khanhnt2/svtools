@@ -6,6 +6,7 @@ import select
 import logging
 import importlib
 import pkgutil
+import traceback
 from plugins.template import PluginBase
 
 
@@ -87,6 +88,7 @@ class PluginManager:
                 loaded_modules.append(module.__class__.__name__)
             except Exception as e:
                 logging.error(e)
+                traceback.print_exc()
         logging.info('Loaded modules: ' + str(loaded_modules))
 
     def enable(self):
@@ -135,10 +137,10 @@ class ProxyHandler(socketserver.BaseRequestHandler):
         global TARGET_IP
         global TARGET_PORT
 
-        sock_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock_client.connect((TARGET_IP, TARGET_PORT))
+        sock_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock_server.connect((TARGET_IP, TARGET_PORT))
         # self.server is instance of ProxyServer
-        self.conn = Connection(self.server.app_name, sock_client, self.request)
+        self.conn = Connection(self.server.app_name, self.request, sock_server)
         logging.info('Open connection %d' % self.conn.id)
         # call plugin
         self.server.plugin.do_new_connection(self.conn)
@@ -164,6 +166,7 @@ class ProxyHandler(socketserver.BaseRequestHandler):
                 break
             except Exception as e:
                 logging.error(e)
+                traceback.print_exc()
                 break
 
     def finish(self):
