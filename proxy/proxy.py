@@ -152,12 +152,10 @@ class ProxyHandler(socketserver.BaseRequestHandler):
                     if len(chunk) == 0:
                         return
                     if s == self.conn.client:
-                        print('send to server')
                         chunk = self.server.plugin.do_send_server(chunk, self.conn)
                         self.conn.buffer_client += chunk
                         self.conn.server.send(chunk)
                     elif s == self.conn.server:
-                        print('send to client')
                         chunk = self.server.plugin.do_send_client(chunk, self.conn)
                         self.conn.buffer_server += chunk
                         self.conn.client.send(chunk)
@@ -165,7 +163,7 @@ class ProxyHandler(socketserver.BaseRequestHandler):
             except socket.error:
                 break
             except Exception as e:
-                logging.error('ssss' + str(e))
+                logging.error(e)
                 break
 
     def finish(self):
