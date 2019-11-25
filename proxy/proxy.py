@@ -191,10 +191,10 @@ def main():
 
     parser = argparse.ArgumentParser(description='Proxy server')
     parser.add_argument('app_name', type=str, help='Application name')
-    parser.add_argument('app_server', type=str, help='Host IP')
-    parser.add_argument('app_port', type=int, help='Host port')
-    parser.add_argument('listen_ip', type=str, help='Target IP')
-    parser.add_argument('listen_port', type=int, help='Target port')
+    parser.add_argument('app_server', type=str, help='Target IP')
+    parser.add_argument('app_port', type=int, help='Target port')
+    parser.add_argument('listen_ip', type=str, help='Host IP')
+    parser.add_argument('listen_port', type=int, help='Host port')
     args = parser.parse_args()
     TARGET_IP = args.app_server
     TARGET_PORT = args.app_port
