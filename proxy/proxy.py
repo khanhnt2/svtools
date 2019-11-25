@@ -23,7 +23,9 @@ class Connection:
         self.__app_name = app_name
         self._max_chunk_size = chunk_size
         self._max_buffer_size = buffer_size
+        # total data server has sent
         self.buffer_server = b''
+        # total data client has sent
         self.buffer_client = b''
         thread_lock.acquire(True)
         Connection.__conn_id += 1
@@ -69,15 +71,17 @@ class PluginManager:
 
     def reload(self):
         self.__modules = []
-        self.load()
+        self.load(True)
 
-    def load(self):
+    def load(self, reload=False):
         '''Dynamic module loading'''
         # https://github.com/cuckoosandbox/cuckoo/blob/master/cuckoo/core/plugins.py#L29
         loaded_modules = []
         for _, module_name, _ in pkgutil.iter_modules([self.path], self.path + '.'):
             try:
-                importlib.import_module(module_name)
+                module = importlib.import_module(module_name)
+                if reload:
+                    importlib.reload(module)
             except ImportError as e:
                 logging.error('Unable to load %s: %s' % (module_name, e))
 
