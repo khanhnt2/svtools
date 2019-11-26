@@ -9,6 +9,7 @@ import pkgutil
 import traceback
 import cmd
 import inspect
+import datetime
 from base import PluginBase
 
 
@@ -25,6 +26,7 @@ class Connection:
         self.__app_name = app_name
         self._max_chunk_size = chunk_size
         self._max_buffer_size = buffer_size
+        self._datetime = str(datetime.datetime.now())
         # total data server has sent
         self.buffer_server = b''
         # total data client has sent
@@ -37,6 +39,10 @@ class Connection:
     @property
     def client(self):
         return self.__client
+
+    @property
+    def datetime(self):
+        return self._datetime
 
     @property
     def app_name(self):
@@ -66,22 +72,32 @@ class Connection:
 
 
 class PluginManager:
+
+    class Plugin:
+        def __init__(self, name, instance: PluginBase):
+            self.enable = True
+            self.name = name
+            self.instance = instance
+
     def __init__(self, path='plugins'):
         self._enable = True
         self.__modules = []
-        self.__instances = []
+        self.__plugins = []
         self.path = path
         self.loaded_modules = []
 
+    @property
+    def plugins(self):
+        return self.__plugins
+
     def reload(self):
         self.__modules = []
-        self.__instances = []
+        self.__plugins = []
         self.load(True)
 
     def load(self, _reload=False):
         '''Dynamic module loading'''
         # https://github.com/cuckoosandbox/cuckoo/blob/master/cuckoo/core/plugins.py#L29
-        self.loaded_modules = []
         for _, module_name, _ in pkgutil.iter_modules([self.path], self.path + '.'):
             try:
                 if _reload:
@@ -99,52 +115,72 @@ class PluginManager:
                     continue
                 try:
                     module = _class()
-                    self.__instances.append(module)
-                    self.loaded_modules.append(name)
+                    self.__plugins.append(self.Plugin(name, _class()))
                 except Exception as e:
                     logging.error(e)
                     traceback.print_exc()
-        logging.info('Loaded modules: ' + str(self.loaded_modules))
+        self.__plugins = sorted(self.__plugins, key=lambda x: x.instance.prioty)
+        loaded_plugins = [inst.name for inst in self.__plugins]
+        logging.info('Loaded plugins: ' + str(loaded_plugins))
 
     def enable(self):
+        '''Enable all plugins'''
         self._enable = True
 
     def disable(self):
+        '''Disable all plugins'''
         self._enable = False
+
+    def disable_plugin(self, name):
+        '''Disable plugin by name'''
+        for plugin in self.__plugins:
+            if plugin.name == name:
+                plugin.enable = False
+                break
+
+    def enable_plugin(self, name):
+        '''Enable plugin by name'''
+        for plugin in self.__plugins:
+            if plugin.name == name:
+                plugin.enable = True
 
     def do_new_connection(self, conn: Connection):
         if self._enable:
-            for inst in self.__instances:
-                try:
-                    inst.new_connection(conn)
-                except Exception as e:
-                    logging.error(inst.__class__.__name__ + '.new_connection ' + str(e))
+            for plugin in self.__plugins:
+                if plugin.enable:
+                    try:
+                        plugin.instance.new_connection(conn)
+                    except Exception as e:
+                        logging.error(plugin.name + '.new_connection ' + str(e))
 
     def do_send_server(self, data: bytes, conn: Connection) -> bytes:
         if self._enable:
-            for inst in self.__instances:
-                try:
-                    data = inst.send_server(data, conn)
-                except Exception as e:
-                    logging.error(inst.__class__.__name__ + '.send_server ' + str(e))
+            for plugin in self.__plugins:
+                if plugin.enable:
+                    try:
+                        data = plugin.instance.send_server(data, conn)
+                    except Exception as e:
+                        logging.error(plugin.name + '.send_server ' + str(e))
         return data
 
     def do_send_client(self, data: bytes, conn: Connection) -> bytes:
         if self._enable:
-            for inst in self.__instances:
-                try:
-                    data = inst.send_client(data, conn)
-                except Exception as e:
-                    logging.error(inst.__class__.__name__ + '.send_client ' + str(e))
+            for plugin in self.__plugins:
+                if plugin.enable:
+                    try:
+                        data = plugin.instance.send_client(data, conn)
+                    except Exception as e:
+                        logging.error(plugin.name + '.send_client ' + str(e))
         return data
 
     def do_finish_connection(self, conn: Connection):
         if self._enable:
-            for inst in self.__instances:
-                try:
-                    inst.finish_connection(conn)
-                except Exception as e:
-                    logging.error(inst.__class__.__name__ + '.finish_connection ' + str(e))
+            for plugin in self.__plugins:
+                if plugin.enable:
+                    try:
+                        plugin.instance.finish_connection(conn)
+                    except Exception as e:
+                        logging.error(plugin.name + '.finish_connection ' + str(e))
 
 
 class ProxyHandler(socketserver.BaseRequestHandler):
@@ -217,19 +253,31 @@ class Console(cmd.Cmd):
         thread = threading.Thread(target=self.proxyserver.serve_forever)
         thread.start()
 
-    def do_reload(self, arg):
+    def do_reload(self, arg: str):
         '''Reload rules'''
         self.plugin.reload()
 
-    def do_enable(self, arg):
+    def do_enable(self, arg: str):
         '''Enable plugins'''
-        self.plugin.enable()
+        if len(arg) == 0:
+            # disable all plugins
+            self.plugin.enable()
+        else:
+            # disable plugin by name
+            plugin_names = arg.split(' ')
+            for name in plugin_names:
+                self.plugin.enable_plugin(name)
 
-    def do_disable(self, arg):
+    def do_disable(self, arg: str):
         '''Disable plugins'''
-        self.plugin.disable()
+        if len(arg) == 0:
+            self.plugin.disable()
+        else:
+            plugin_name = arg.split(' ')
+            for name in plugin_name:
+                self.plugin.disable_plugin(name)
 
-    def do_exit(self, arg):
+    def do_exit(self, arg: str):
         '''Exit program'''
         self.proxyserver.server_close()
         return True
