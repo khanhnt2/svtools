@@ -47,7 +47,6 @@ class LogFile(PluginBase):
 
 class LogServer(PluginBase):
     def __init__(self):
-        super().__init__()
         self.url = 'http://192.168.3.145/writelog.php'
 
     def thread_logserver(self, _data, conn, who_send):

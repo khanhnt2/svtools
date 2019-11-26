@@ -119,7 +119,7 @@ class PluginManager:
                 except Exception as e:
                     logging.error(e)
                     traceback.print_exc()
-        self.__plugins = sorted(self.__plugins, key=lambda x: x.instance.prioty)
+        self.__plugins = sorted(self.__plugins, key=lambda x: 999 if not hasattr(x.instance, 'prioty') else x.instance.prioty)
         loaded_plugins = [inst.name for inst in self.__plugins]
         logging.info('Loaded plugins: ' + str(loaded_plugins))
 
