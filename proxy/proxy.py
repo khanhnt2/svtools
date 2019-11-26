@@ -7,7 +7,9 @@ import logging
 import importlib
 import pkgutil
 import traceback
-from plugins.template import PluginBase
+import cmd
+import inspect
+from base import PluginBase
 
 
 thread_lock = threading.Lock()
@@ -64,76 +66,85 @@ class Connection:
 
 
 class PluginManager:
-    def __init__(self, path):
-        self.enable = True
+    def __init__(self, path='plugins'):
+        self._enable = True
         self.__modules = []
+        self.__instances = []
         self.path = path
+        self.loaded_modules = []
 
     def reload(self):
         self.__modules = []
+        self.__instances = []
         self.load(True)
 
-    def load(self, reload=False):
+    def load(self, _reload=False):
         '''Dynamic module loading'''
         # https://github.com/cuckoosandbox/cuckoo/blob/master/cuckoo/core/plugins.py#L29
-        loaded_modules = []
+        self.loaded_modules = []
         for _, module_name, _ in pkgutil.iter_modules([self.path], self.path + '.'):
             try:
-                module = importlib.import_module(module_name)
-                if reload:
-                    importlib.reload(module)
+                if _reload:
+                    module = importlib.import_module(module_name)
+                    self.__modules.append(importlib.reload(module))
+                else:
+                    self.__modules.append(importlib.import_module(module_name))
             except ImportError as e:
                 logging.error('Unable to load %s: %s' % (module_name, e))
 
-        for _class in PluginBase.__subclasses__():
-            try:
-                module = _class()
-                self.__modules.append(module)
-                loaded_modules.append(module.__class__.__name__)
-            except Exception as e:
-                logging.error(e)
-                traceback.print_exc()
-        logging.info('Loaded modules: ' + str(loaded_modules))
+        for module in self.__modules:
+            class_members = inspect.getmembers(module, inspect.isclass)
+            for name, _class in class_members:
+                if not issubclass(_class, PluginBase) or name == 'PluginBase':
+                    continue
+                try:
+                    module = _class()
+                    self.__instances.append(module)
+                    self.loaded_modules.append(name)
+                except Exception as e:
+                    logging.error(e)
+                    traceback.print_exc()
+        logging.info('Loaded modules: ' + str(self.loaded_modules))
 
     def enable(self):
-        self.enable = True
+        self._enable = True
 
     def disable(self):
-        self.enable = False
+        self._enable = False
 
     def do_new_connection(self, conn: Connection):
-        if self.enable:
-            for module in self.__modules:
+        if self._enable:
+            for inst in self.__instances:
                 try:
-                    module.new_connection(conn)
+                    inst.new_connection(conn)
                 except Exception as e:
-                    logging.error(module.__class__.__name__ + '.new_connection ' + str(e))
+                    logging.error(inst.__class__.__name__ + '.new_connection ' + str(e))
 
     def do_send_server(self, data: bytes, conn: Connection) -> bytes:
-        if self.enable:
-            for module in self.__modules:
+        if self._enable:
+            for inst in self.__instances:
                 try:
-                    data = module.send_server(data, conn)
+                    data = inst.send_server(data, conn)
                 except Exception as e:
-                    logging.error(module.__class__.__name__ + '.send_server ' + str(e))
+                    logging.error(inst.__class__.__name__ + '.send_server ' + str(e))
         return data
 
     def do_send_client(self, data: bytes, conn: Connection) -> bytes:
-        if self.enable:
-            for module in self.__modules:
+        if self._enable:
+            for inst in self.__instances:
                 try:
-                    data = module.send_client(data, conn)
+                    data = inst.send_client(data, conn)
                 except Exception as e:
-                    logging.error(module.__class__.__name__ + '.send_client ' + str(e))
+                    logging.error(inst.__class__.__name__ + '.send_client ' + str(e))
         return data
 
     def do_finish_connection(self, conn: Connection):
-        if self.enable:
-            for module in self.__modules:
+        if self._enable:
+            for inst in self.__instances:
                 try:
-                    module.finish_connection(conn)
+                    inst.finish_connection(conn)
                 except Exception as e:
-                    logging.error(module.__class__.__name__ + '.finish_connection ' + str(e))
+                    logging.error(inst.__class__.__name__ + '.finish_connection ' + str(e))
 
 
 class ProxyHandler(socketserver.BaseRequestHandler):
@@ -189,9 +200,53 @@ class ProxyServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
         self.app_name = app_name
 
 
+class Console(cmd.Cmd):
+    prompt = '> '
+
+    def preloop(self):
+        global TARGET_IP
+        global TARGET_PORT
+        global HOST_IP
+        global HOST_PORT
+        global APP_NAME
+
+        self.plugin = PluginManager()
+        self.plugin.load()
+        self.proxyserver = ProxyServer(APP_NAME, (HOST_IP, HOST_PORT), ProxyHandler, self.plugin)
+
+        thread = threading.Thread(target=self.proxyserver.serve_forever)
+        thread.start()
+
+    def do_reload(self, arg):
+        '''Reload rules'''
+        self.plugin.reload()
+
+    def do_enable(self, arg):
+        '''Enable plugins'''
+        self.plugin.enable()
+
+    def do_disable(self, arg):
+        '''Disable plugins'''
+        self.plugin.disable()
+
+    def do_exit(self, arg):
+        '''Exit program'''
+        self.proxyserver.server_close()
+        return True
+
+    def postloop(self):
+        self.do_exit(None)
+
+    def keyboard_interrupt(self):
+        self.do_exit(None)
+
+
 def main():
     global TARGET_IP
     global TARGET_PORT
+    global HOST_IP
+    global HOST_PORT
+    global APP_NAME
 
     parser = argparse.ArgumentParser(description='Proxy server')
     parser.add_argument('app_name', type=str, help='Application name')
@@ -202,17 +257,26 @@ def main():
     args = parser.parse_args()
     TARGET_IP = args.app_server
     TARGET_PORT = args.app_port
+    APP_NAME = args.app_name
+    HOST_IP = args.listen_ip
+    HOST_PORT = args.listen_port
 
-    plugin = PluginManager('plugins')
-    plugin.load()
-    server = ProxyServer(args.app_name, (args.listen_ip, args.listen_port), ProxyHandler, plugin)
+    cmd = Console()
     try:
-        server.serve_forever()
+        cmd.cmdloop()
     except KeyboardInterrupt:
-        server.server_close()
-    except Exception as e:
-        server.server_close()
-        logging.error(e)
+        cmd.do_exit(None)
+
+    # plugin = PluginManager()
+    # plugin.load()
+    # server = ProxyServer(args.app_name, (args.listen_ip, args.listen_port), ProxyHandler, plugin)
+    # try:
+    #     server.serve_forever()
+    # except KeyboardInterrupt:
+    #     server.server_close()
+    # except Exception as e:
+    #     server.server_close()
+    #     logging.error(e)
 
 
 if __name__ == '__main__':
