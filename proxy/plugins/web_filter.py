@@ -3,13 +3,13 @@ from base import PluginBase
 
 class WebFilter(PluginBase):
     def __init__(self):
-        super().__init__()
         self.prioty = 0
 
     def new_connection(self, conn):
         pass
 
     def send_server(self, data, conn):
+        # remove compression
         if b'Accept-Encoding: gzip, deflate\r\n' in data:
             data = data.replace(b'Accept-Encoding: gzip, deflate\r\n', b'')
         return data

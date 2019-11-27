@@ -10,6 +10,7 @@ import traceback
 import cmd
 import inspect
 import datetime
+import os
 from base import PluginBase
 
 
@@ -75,7 +76,7 @@ class PluginManager:
 
     class Plugin:
         def __init__(self, name, instance: PluginBase):
-            self.enable = True
+            self.enable = instance.enable
             self.name = name
             self.instance = instance
 
@@ -119,9 +120,19 @@ class PluginManager:
                 except Exception as e:
                     logging.error(e)
                     traceback.print_exc()
-        self.__plugins = sorted(self.__plugins, key=lambda x: 999 if not hasattr(x.instance, 'prioty') else x.instance.prioty)
-        loaded_plugins = [inst.name for inst in self.__plugins]
-        logging.info('Loaded plugins: ' + str(loaded_plugins))
+        self.__plugins = sorted(self.__plugins, key=lambda x: x.instance.prioty)
+        logging.info('Loaded plugins: ' + str(self.loaded))
+        logging.info('Running plugins: ' + str(self.running))
+
+    @property
+    def loaded(self):
+        '''List loaded modules'''
+        return [inst.name for inst in self.__plugins]
+
+    @property
+    def running(self):
+        '''List running modules'''
+        return [inst.name for inst in self.__plugins if inst.enable]
 
     def enable(self):
         '''Enable all plugins'''
@@ -193,6 +204,9 @@ class ProxyHandler(socketserver.BaseRequestHandler):
         # self.server is instance of ProxyServer
         self.conn = Connection(self.server.app_name, self.request, sock_server)
         logging.info('Open connection %d' % self.conn.id)
+        # create new app_name folder
+        if not os.path.exists(self.server.app_name):
+            os.makedirs(self.server.app_name)
         # call plugin
         self.server.plugin.do_new_connection(self.conn)
 
@@ -221,9 +235,9 @@ class ProxyHandler(socketserver.BaseRequestHandler):
                 break
 
     def finish(self):
+        self.conn.client.close()
         logging.info('Close connection %d' % self.conn.id)
         self.server.plugin.do_finish_connection(self.conn)
-        self.conn.client.close()
 
 
 class ProxyServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -259,6 +273,7 @@ class Console(cmd.Cmd):
 
     def do_enable(self, arg: str):
         '''Enable plugins'''
+        # can use argparse to parse arg
         if len(arg) == 0:
             # disable all plugins
             self.plugin.enable()
@@ -267,6 +282,10 @@ class Console(cmd.Cmd):
             plugin_names = arg.split(' ')
             for name in plugin_names:
                 self.plugin.enable_plugin(name)
+        self.do_running(None)
+
+    def do_running(self, arg: str):
+        print(str(self.plugin.running))
 
     def do_disable(self, arg: str):
         '''Disable plugins'''
@@ -276,6 +295,7 @@ class Console(cmd.Cmd):
             plugin_name = arg.split(' ')
             for name in plugin_name:
                 self.plugin.disable_plugin(name)
+        self.do_running(None)
 
     def do_exit(self, arg: str):
         '''Exit program'''
@@ -314,17 +334,6 @@ def main():
         cmd.cmdloop()
     except KeyboardInterrupt:
         cmd.do_exit(None)
-
-    # plugin = PluginManager()
-    # plugin.load()
-    # server = ProxyServer(args.app_name, (args.listen_ip, args.listen_port), ProxyHandler, plugin)
-    # try:
-    #     server.serve_forever()
-    # except KeyboardInterrupt:
-    #     server.server_close()
-    # except Exception as e:
-    #     server.server_close()
-    #     logging.error(e)
 
 
 if __name__ == '__main__':

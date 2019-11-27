@@ -2,8 +2,10 @@ import abc
 
 
 class PluginBase(abc.ABC):
-    def __init__(self):
-        self.prioty = 999
+    # prioty to call plugin, lower first
+    prioty = 999
+    # enable plugin after load
+    enable = True
 
     @abc.abstractmethod
     def new_connection(self, conn):
