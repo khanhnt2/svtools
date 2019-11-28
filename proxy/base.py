@@ -26,3 +26,7 @@ class PluginBase(abc.ABC):
     def finish_connection(self, conn):
         '''Will be called when connection close'''
         pass
+
+    def drop_connection(self, conn):
+        conn.client.close()
+        conn.server.close()
