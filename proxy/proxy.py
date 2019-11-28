@@ -313,7 +313,10 @@ class Console(cmd.Cmd):
         self.do_running(None)
 
     def do_running(self, arg: str):
-        print(str(self.plugin.running))
+        if not self.plugin.enable:
+            print('[]')
+        else:
+            print(str(self.plugin.running))
 
     def do_disable(self, arg: str):
         '''Disable plugins'''
