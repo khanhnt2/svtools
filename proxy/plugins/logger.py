@@ -87,6 +87,20 @@ class GrayLog(PluginBase):
         pass
 
 
+def send_warn_graylog(keyword, conn):
+    header = {'Content-Type': 'application/json'}
+    pdata = {"version": "1.1", "host": conn.app_name, 'short_message': "Matched keyword " + str(keyword), "level": 0, 'conn_id': conn.id, 'datetime': conn.datetime}
+    try:
+        requests.post('http://192.168.56.117:12201/gelf', json=pdata, headers=header, timeout=2.0)
+    except Exception as e:
+        logging.error('Send graylog: ' + str(e))
+
+
+def warn_thread(keyword, conn):
+    t = threading.Thread(target=send_warn_graylog, args=(keyword, conn,))
+    t.start()
+
+
 class LogTcpStream(PluginBase):
     '''Log TCP stream, userful for binary challenges'''
     def __init__(self):
