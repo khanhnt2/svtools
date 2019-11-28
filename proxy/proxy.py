@@ -295,6 +295,10 @@ class Console(cmd.Cmd):
         '''Reload rules'''
         self.plugin.reload()
 
+    def do_loaded(self, arg: str):
+        '''List loaded plugins'''
+        print(str(self.plugin.loaded))
+
     def do_enable(self, arg: str):
         '''Enable plugins'''
         # can use argparse to parse arg
