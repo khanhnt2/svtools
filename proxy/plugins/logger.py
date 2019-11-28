@@ -1,9 +1,6 @@
 from base import PluginBase
 from graylog import Graylog
 import os
-import requests
-import threading
-import logging
 
 
 class LogConsole(PluginBase):
