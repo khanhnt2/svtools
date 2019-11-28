@@ -86,10 +86,23 @@ class PluginManager:
         self.__plugins = []
         self.path = path
         self.loaded_modules = []
+        self._app_path = None
 
     @property
     def plugins(self):
         return self.__plugins
+
+    @property
+    def app_path(self):
+        return self._app_path
+
+    @app_path.setter
+    def app_path(self, path):
+        self._app_path = path  # os.path.join(self.path, path)
+        # create app_path plugins folder
+        app_plugin_path = os.path.join(self.path, self._app_path)
+        if not os.path.exists(app_plugin_path):
+            os.makedirs(app_plugin_path)
 
     def reload(self):
         self.__modules = []
@@ -106,7 +119,17 @@ class PluginManager:
                     self.__modules.append(importlib.reload(module))
                 else:
                     self.__modules.append(importlib.import_module(module_name))
-            except ImportError as e:
+            except Exception as e:
+                logging.error('Unable to load %s: %s' % (module_name, e))
+
+        for _, module_name, _ in pkgutil.iter_modules([os.path.join(self.path, self._app_path)], self.path + '.' + self._app_path):
+            try:
+                if _reload:
+                    module = importlib.import_module(module_name)
+                    self.__modules.append(importlib.reload(module))
+                else:
+                    self.__modules.append(importlib.import_module(module_name))
+            except Exception as e:
                 logging.error('Unable to load %s: %s' % (module_name, e))
 
         for module in self.__modules:
@@ -262,6 +285,7 @@ class Console(cmd.Cmd):
 
         self.plugin = PluginManager()
         self.plugin.load()
+        self.plugin.app_path = APP_NAME
         self.proxyserver = ProxyServer(APP_NAME, (HOST_IP, HOST_PORT), ProxyHandler, self.plugin)
 
         thread = threading.Thread(target=self.proxyserver.serve_forever)
@@ -334,6 +358,8 @@ def main():
         cmd.cmdloop()
     except KeyboardInterrupt:
         cmd.do_exit(None)
+    except Exception as e:
+        logging.error('cmd error ' + str(e))
 
 
 if __name__ == '__main__':
