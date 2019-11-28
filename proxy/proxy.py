@@ -284,8 +284,8 @@ class Console(cmd.Cmd):
         global APP_NAME
 
         self.plugin = PluginManager()
-        self.plugin.load()
         self.plugin.app_path = APP_NAME
+        self.plugin.load()
         self.proxyserver = ProxyServer(APP_NAME, (HOST_IP, HOST_PORT), ProxyHandler, self.plugin)
 
         thread = threading.Thread(target=self.proxyserver.serve_forever)
