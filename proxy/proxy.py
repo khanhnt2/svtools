@@ -122,7 +122,7 @@ class PluginManager:
             except Exception as e:
                 logging.error('Unable to load %s: %s' % (module_name, e))
 
-        for _, module_name, _ in pkgutil.iter_modules([os.path.join(self.path, self._app_path)], self.path + '.' + self._app_path):
+        for _, module_name, _ in pkgutil.iter_modules([os.path.join(self.path, self._app_path)], self.path + '.' + self._app_path + '.'):
             try:
                 if _reload:
                     module = importlib.import_module(module_name)
