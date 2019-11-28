@@ -12,6 +12,9 @@ class BlockFlag(PluginBase):
         pass
 
     def send_server(self, data, conn):
+        return data
+
+    def send_client(self, data, conn):
         lower_data = str(data).lower()
         blockwords = ['svattt{', '{tttavs', 'u1zbvfru', 'vfruqvzt']
         for word in badwords:
@@ -20,10 +23,6 @@ class BlockFlag(PluginBase):
                 self.drop_connection(conn)
                 # Log about this block
                 self.graylog.block(word, conn)
-        return data
-
-    def send_client(self, data, conn):
-        '''Will be called when send data to client'''
         return data
 
     def finish_connection(self, conn):
