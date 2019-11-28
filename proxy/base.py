@@ -2,8 +2,8 @@ import abc
 
 
 class PluginBase(abc.ABC):
-    # prioty to call plugin, lower first
-    prioty = 999
+    # priority to call plugin, lower first
+    priority = 999
     # enable plugin after load
     enable = True
 

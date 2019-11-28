@@ -3,7 +3,7 @@ from base import PluginBase
 
 class WebFilter(PluginBase):
     def __init__(self):
-        self.prioty = 0
+        self.priority = 0
 
     def new_connection(self, conn):
         pass
