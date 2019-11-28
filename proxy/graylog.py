@@ -19,11 +19,19 @@ class Graylog:
         self.__send(sdata)
 
     def __warn(self, keyword, conn):
-        sdata = {"version": "1.1", "host": conn.app_name, 'short_message': "Matched keyword", "level": 0, 'conn_id': conn.id, 'datetime': conn.datetime, 'keyword': str(keyword)}
+        sdata = {"version": "1.1", "host": conn.app_name, 'short_message': "Warn matched keyword", "level": 1, 'conn_id': conn.id, 'datetime': conn.datetime, 'keyword': str(keyword)}
         self.__send(sdata)
 
     def warn(self, keyword, conn):
         t = threading.Thread(target=self.__warn, args=(keyword, conn,))
+        t.start()
+
+    def __block(self, keyword, conn):
+        sdata = {"version": "1.1", "host": conn.app_name, 'short_message': "Block matched keyword", "level": 0, 'conn_id': conn.id, 'datetime': conn.datetime, 'keyword': str(keyword)}
+        self.__send(sdata)
+
+    def block(self, keyword, conn):
+        t = threading.Thread(target=self.__block, args=(keyword, conn,))
         t.start()
 
     def __send(self, json_data):
