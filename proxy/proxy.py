@@ -226,7 +226,7 @@ class ProxyHandler(socketserver.BaseRequestHandler):
         sock_server.connect((TARGET_IP, TARGET_PORT))
         # self.server is instance of ProxyServer
         self.conn = Connection(self.server.app_name, self.request, sock_server)
-        logging.info('Open connection %d' % self.conn.id)
+        # logging.info('Open connection %d' % self.conn.id)
         # create new app_name folder
         if not os.path.exists(self.server.app_name):
             os.makedirs(self.server.app_name)
@@ -259,7 +259,7 @@ class ProxyHandler(socketserver.BaseRequestHandler):
 
     def finish(self):
         self.conn.client.close()
-        logging.info('Close connection %d' % self.conn.id)
+        # logging.info('Close connection %d' % self.conn.id)
         self.server.plugin.do_finish_connection(self.conn)
 
 
@@ -313,7 +313,10 @@ class Console(cmd.Cmd):
         self.do_running(None)
 
     def do_running(self, arg: str):
-        print(str(self.plugin.running))
+        if not self.plugin.enable:
+            print('[]')
+        else:
+            print(str(self.plugin.running))
 
     def do_disable(self, arg: str):
         '''Disable plugins'''
