@@ -16,7 +16,7 @@ class BlockFlag(PluginBase):
 
     def send_client(self, data, conn):
         lower_data = str(data).lower()
-        blockwords = ['svattt{', '{tttavs', 'u1zbvfru', 'vfruqvzt']
+        blockwords = ['svattt{', '{tttavs', 'u1zbvfru', 'vfruqvzt', 'svattt2019{', '{9102tttavs', 'u1zbvfrumjaxo']
         for word in blockwords:
             if word in lower_data:
                 # Drop connection
