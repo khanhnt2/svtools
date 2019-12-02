@@ -28,8 +28,8 @@ class ExamplePlugin(PluginBase):
                 # Log about warning
                 self.graylog.warn(word, conn)
 
-        blockwords = ['UNION']
-        for word in badwords:
+        blockwords = ['union']
+        for word in blockwords:
             if word in lower_data:
                 # Drop connection
                 self.drop_connection(conn)
